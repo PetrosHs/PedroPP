@@ -1,0 +1,44 @@
+
+:root{--red:#e10600;--bg:rgba(10,12,18,.72);--line:rgba(255,255,255,.14);--txt:#f2f4f8;--dim:#98a2b3}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#0b0d12;color:var(--txt);font-family:'Rajdhani','Segoe UI',system-ui,sans-serif;user-select:none}
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
+.orb{font-family:'Orbitron','Segoe UI',monospace}
+.panel{background:var(--bg);border:1px solid var(--line);border-left:4px solid var(--red);backdrop-filter:blur(6px);padding:8px 14px;border-radius:4px}
+#hud{position:fixed;inset:0;pointer-events:none;display:none}
+#tl{position:absolute;top:14px;left:14px;display:flex;flex-direction:column;gap:6px;min-width:210px}
+#tl .k{font-size:12px;letter-spacing:2px;color:var(--dim)}
+#tl .v{font-size:22px;font-weight:700}
+#lapbig{font-size:26px}
+#tr{position:absolute;top:14px;right:14px;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+#mini{background:var(--bg);border:1px solid var(--line);border-radius:6px}
+#pos{font-size:34px;font-weight:900;color:#fff}#pos small{font-size:16px;color:var(--dim)}
+#speedo{position:absolute;right:18px;bottom:62px;width:230px;height:230px}
+#gauge{width:230px;height:230px}
+#kmh{position:absolute;left:0;right:0;top:100px;text-align:center;font-size:46px;font-weight:900;line-height:1}
+#kmhu{position:absolute;left:0;right:0;top:152px;text-align:center;font-size:12px;letter-spacing:3px;color:var(--dim)}
+#boost{position:absolute;left:30px;right:30px;bottom:-4px;height:8px;background:rgba(255,255,255,.12);border-radius:4px;overflow:hidden}
+#boostf{height:100%;width:0;background:#3aa0ff;transition:background .1s}
+#controls{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);font-size:15px;letter-spacing:1px;color:var(--dim);white-space:nowrap}
+#controls b{color:#fff;background:rgba(255,255,255,.12);padding:1px 7px;border-radius:3px;margin:0 3px}
+#lights{position:absolute;top:70px;left:50%;transform:translateX(-50%);display:none;gap:14px;padding:12px 18px;background:rgba(0,0,0,.7);border-radius:12px;border:2px solid #222}
+.l{width:46px;height:46px;border-radius:50%;background:#2a0a0a;border:3px solid #111;transition:all .08s}
+.l.on{background:#ff1a1a;box-shadow:0 0 22px 6px rgba(255,30,30,.8)}
+#go{position:absolute;top:34%;left:0;right:0;text-align:center;font-size:110px;font-weight:900;color:#3dff7a;text-shadow:0 0 30px #0f0;display:none}
+#msg{position:absolute;top:22%;left:0;right:0;text-align:center;font-size:30px;font-weight:700;color:#ffd24a;text-shadow:0 2px 10px #000}
+.ov{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:radial-gradient(ellipse at center,rgba(20,24,34,.88),rgba(5,6,10,.96));z-index:10;text-align:center;padding:20px;overflow:auto}
+.ov h1{font-size:clamp(26px,5vw,54px);font-weight:900;letter-spacing:3px}
+.ov h1 span{color:var(--red)}
+.ov h2{font-size:14px;letter-spacing:4px;color:var(--dim);margin:22px 0 10px}
+.row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.card{pointer-events:auto;cursor:pointer;min-width:170px;padding:14px 16px;background:rgba(255,255,255,.05);border:2px solid var(--line);border-radius:8px;font-size:18px;font-weight:700;transition:.15s}
+.card small{display:block;color:var(--dim);font-weight:500;font-size:13px;margin-top:3px}
+.card:hover{background:rgba(255,255,255,.1)}
+.card.sel{border-color:var(--red);background:rgba(225,6,0,.18);box-shadow:0 0 18px rgba(225,6,0,.4)}
+.btn{pointer-events:auto;cursor:pointer;margin-top:28px;padding:14px 46px;font-size:20px;font-weight:900;letter-spacing:3px;color:#fff;background:var(--red);border:0;border-radius:4px;font-family:'Orbitron',sans-serif;clip-path:polygon(12px 0,100% 0,calc(100% - 12px) 100%,0 100%)}
+.btn:hover{filter:brightness(1.2)}
+#loadwrap{width:min(420px,80vw);height:8px;background:rgba(255,255,255,.12);border-radius:4px;margin-top:20px;overflow:hidden}
+#loadbar{height:100%;width:0;background:var(--red);transition:width .2s}
+#fin table{margin:16px auto 0;border-collapse:collapse;font-size:20px}
+#fin td{padding:4px 18px;border-bottom:1px solid var(--line)}#fin td:first-child{color:var(--dim)}
+.big{font-size:44px;font-weight:900;color:#fff}
