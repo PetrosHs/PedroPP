@@ -1,17 +1,19 @@
-
+// Importação de módulos essenciais do Three.js
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
+// Funções utilitárias rápidas
 const $=id=>document.getElementById(id);
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const wrapPI=a=>{while(a>Math.PI)a-=2*Math.PI;while(a<-Math.PI)a+=2*Math.PI;return a;};
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)); // Restringe um valor entre um mínimo e um máximo
+const wrapPI=a=>{while(a>Math.PI)a-=2*Math.PI;while(a<-Math.PI)a+=2*Math.PI;return a;}; // Normaliza ângulos para o intervalo [-PI, PI]
 
 /*MATH_START*/
-// ===== Geometria do circuito oval (estádio): 2 retas + 2 semicírculos. Sentido anti-horário (curvas à esquerda) =====
+// ===== Geometria do circuito oval (estádio): 2 retas + 2 semicírculos. Sentido anti-horário =====
 const TR={cx:150,R:132.25,cz:-160.75,zb:-28.5,zt:-293,S0:158.6};
-const LS=300, LC=Math.PI*TR.R, L=2*LS+2*LC;
-// Projeta (x,z) na linha central: s = distância ao longo do traçado; lat = deslocamento lateral (+ = esquerda)
+const LS=300, LC=Math.PI*TR.R, L=2*LS+2*LC; // L = Comprimento total da linha central do circuito
+
+// Projeta coordenadas (x,z) na linha central teórica da pista
 function project(x,z){
   if(x>=-TR.cx&&x<=TR.cx){
     if(z>=TR.cz) return {s:x+TR.cx,lat:TR.zb-z};
@@ -22,7 +24,8 @@ function project(x,z){
   const dx=x+TR.cx,dz=z-TR.cz;let phi=Math.atan2(dz,dx);if(phi<0)phi+=2*Math.PI;
   return {s:2*LS+LC+(1.5*Math.PI-phi)*TR.R,lat:TR.R-Math.hypot(dx,dz)};
 }
-// Ponto no traçado (s) com deslocamento lateral off (+ = esquerda) e direção th (forward = (sin th, cos th))
+
+// Retorna ponto (x,z) e orientação (th) no traçado para uma distância s acumulada
 function pathAt(s,off=0){
   s=((s%L)+L)%L;let x,z,th;
   if(s<LS){x=s-TR.cx;z=TR.zb-off;th=Math.PI/2;}
@@ -33,20 +36,24 @@ function pathAt(s,off=0){
 }
 /*MATH_END*/
 
-// ===== Configuração =====
+// ===== Configurações Globais do Jogo =====
 const CFG={laps:3,maxV:52,acc:20,brake:46,revMax:14,maxTurn:0.95,roadHalf:7.6,wall:10.2,wallR:12.5,kartLen:4.5,nCP:12,aiCount:3};
+
+// Definições dos Karts disponíveis
 const KARTS=[
   {id:'go',   name:'Go-Kart Clássico', sub:'Leve e ágil',      file:'kart_go',      rotY:0,         seat:[0,0.93,-0.57], H:2.4},
   {id:'cart', name:'Kart Cartoon',     sub:'Divertido',        file:'kart_cartoon', rotY:0,         seat:[0,0.62,-0.50], H:2.2},
   {id:'f1',   name:'F1 Senna 1991',    sub:'Pura velocidade',  file:'kart_f1',      rotY:0,   seat:[0,0.30, 0.47], H:1.7},
 ];
+
+// Definições dos Pilotos disponíveis
 const PILOTS=[
   {id:'sci', name:'Cientista Farmacêutico', sub:'Piloto 1', file:'pilot_scientist'},
   {id:'mod', name:'Modelagem de Personagens', sub:'Piloto 2', file:'pilot_modelagem'},
 ];
-const AI_COLORS=['#4aa8ff','#ffd24a','#5dff9a'];
+const AI_COLORS=['#4aa8ff','#ffd24a','#5dff9a']; // Cores atribuídas aos adversários da IA
 
-// ===== Estado global =====
+// ===== Estado Global =====
 let renderer,scene,camera,sun,skyDome,particles;
 let assets={},karts=[],player=null,state='loading';
 let groundRoad=[],groundOther=[];
@@ -58,25 +65,32 @@ const ray=new THREE.Raycaster();ray.far=70;
 const DOWN=new THREE.Vector3(0,-1,0),_v=new THREE.Vector3(),_n=new THREE.Vector3();
 let raceTime=0,cdTime=0,cdGo=0,goShown=0,lastT=0,audio=null;
 
-// ===== init =====
+// ===== Função de Inicialização =====
 function init(){
+  // Configura o Renderizador WebGL do Three.js
   renderer=new THREE.WebGLRenderer({canvas:$('gl'),antialias:true,powerPreference:'high-performance'});
   renderer.setPixelRatio(Math.min(devicePixelRatio,2));
   renderer.setSize(innerWidth,innerHeight);
   renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-  renderer.localClippingEnabled=true;
+  renderer.localClippingEnabled=true; // Permite o corte do corpo do piloto no assento
+  
   scene=new THREE.Scene();
   camera=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,0.3,2500);
+  
   setupLights();setupEnvironment();
+  
+  // Handlers para redimensionamento da janela e entradas de teclado
   addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();});
   addEventListener('keydown',e=>{keys[e.code]=true;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();if(e.code==='KeyR'&&(state==='racing'||state==='countdown'))startRace();});
   addEventListener('keyup',e=>{keys[e.code]=false;});
+  
+  // Carrega assets 3D e inicia a interface
   loadAssets().then(()=>{buildTrack();buildMenu();$('loading').style.display='none';$('menu').style.display='flex';state='menu';placeGridPreview();requestAnimationFrame(animate);});
   $('startBtn').onclick=()=>{startRace();};
   $('againBtn').onclick=()=>{$('fin').style.display='none';startRace();};
 }
 
-// ===== Luzes (Ambient + Directional com sombras) =====
+// ===== Configuração de Luzes da Cena =====
 function setupLights(){
   scene.add(new THREE.AmbientLight(0xffffff,0.75));
   scene.add(new THREE.HemisphereLight(0xcfe8ff,0x5a7a3a,0.9));
@@ -87,7 +101,7 @@ function setupLights(){
   scene.add(sun,sun.target);
 }
 
-// ===== Ambiente: céu, neblina, árvores =====
+// ===== Ambiente: Céu gradiente, neblina e partículas =====
 function setupEnvironment(){
   scene.fog=new THREE.FogExp2(0xbcd6ee,0.0022);
   const cv=document.createElement('canvas');cv.width=4;cv.height=256;const g=cv.getContext('2d');
@@ -98,7 +112,9 @@ function setupEnvironment(){
   skyDome.renderOrder=-10;scene.add(skyDome);
   particles=makeParticles();scene.add(particles.points);
 }
-function scatterTrees(){ // árvores colocadas fora do asfalto real, em volta do circuito
+
+// Distribui árvores de forma aleatória nas margens do asfalto
+function scatterTrees(){
   const N=170,trunk=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.5,0.8,5,6),new THREE.MeshStandardMaterial({color:0x6b4a2b}),N);
   const leaf=new THREE.InstancedMesh(new THREE.ConeGeometry(4.2,11,7),new THREE.MeshStandardMaterial({color:0x2f7d3a,flatShading:true}),N);
   leaf.castShadow=trunk.castShadow=true;
@@ -109,7 +125,7 @@ function scatterTrees(){ // árvores colocadas fora do asfalto real, em volta do
     let x,z;
     if(roadMaskData){
       x=-315+Math.random()*630;z=-305+Math.random()*360;
-      if(roadAt(x,z))continue;
+      if(roadAt(x,z))continue; // Evita colocar árvores no meio da pista
       let closeToRoad=false;
       for(const rr of [14,26,38]){
         for(let j=0;j<8;j++){const a=j*Math.PI/4;if(roadAt(x+Math.sin(a)*rr,z+Math.cos(a)*rr)){closeToRoad=true;break;}}
@@ -129,7 +145,8 @@ function scatterTrees(){ // árvores colocadas fora do asfalto real, em volta do
   }
   trunk.count=leaf.count=n;scene.add(trunk,leaf);
 }
-// ===== Carregamento de modelos externos em assets/modelos =====
+
+// ===== Carregamento Assíncrono dos Modelos 3D =====
 async function loadAssets(){
   const loader=new GLTFLoader();
   const names=['track', 'kart_go', 'kart_cartoon', 'kart_f1', 'pilot_scientist', 'pilot_modelagem'];
@@ -141,7 +158,7 @@ async function loadAssets(){
   }));
 }
 
-// ===== Pista =====
+// ===== Montagem do Cenário e Pista =====
 function buildTrack(){
   const g=assets.track;
   if(g){
@@ -154,12 +171,13 @@ function buildTrack(){
       if(['grass_1','grass_2','gravel'].includes(n))groundOther.push(o);
     });
     scene.add(g.scene);
-  }else buildProceduralTrack();
+  }else buildProceduralTrack(); // Pista gerada via código caso falhe o carregamento
   scene.updateMatrixWorld(true);
   buildRoadMask();
   scatterTrees();
 }
-// ===== Mapa real do asfalto: usado para limites, IA e minimapa =====
+
+// ===== Rasterização do Asfalto em Canvas de Máscara (Road Mask) =====
 function buildRoadMask(){
   roadMaskCanvas=document.createElement('canvas');
   roadMaskW=Math.ceil((ROAD_MAX_X-ROAD_MIN_X)*ROAD_SCALE);
@@ -172,6 +190,8 @@ function buildRoadMask(){
   const px=x=>(x-ROAD_MIN_X)*ROAD_SCALE;
   const pz=z=>(ROAD_MAX_Z-z)*ROAD_SCALE;
   let triangles=0;
+  
+  // Varre os triângulos da malha 3D de asfalto e desenha em 2D
   for(const mesh of groundRoad){
     const geo=mesh.geometry,pos=geo&&geo.attributes&&geo.attributes.position;
     if(!pos)continue;
@@ -182,7 +202,7 @@ function buildRoadMask(){
       b.set(pos.getX(ib),pos.getY(ib),pos.getZ(ib));mesh.localToWorld(b);
       c.set(pos.getX(ic),pos.getY(ic),pos.getZ(ic));mesh.localToWorld(c);
       const abx=b.x-a.x,aby=b.y-a.y,abz=b.z-a.z,acx=c.x-a.x,acy=c.y-a.y,acz=c.z-a.z;
-      const nx=aby*acz-abz*acy,ny=abz*acx-abx*acz,nz=abx*acy-aby*acx,nlen=Math.hypot(nx,ny,nz);
+      const nx=aby*acz-abz*acy,ny=abz*acx-abx*acz,nlen=Math.hypot(nx,ny,nz);
       if(nlen<0.0001||Math.abs(ny)/nlen<0.35)continue;
       const e1=Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z),e2=Math.hypot(b.x-c.x,b.y-c.y,b.z-c.z),e3=Math.hypot(c.x-a.x,c.y-a.y,c.z-a.z);
       if(Math.max(e1,e2,e3)>28)continue;
@@ -192,15 +212,19 @@ function buildRoadMask(){
       triangles++;
     }
   }
+  // Armazena os dados de opacidade em um Uint8Array otimizado (1 = asfalto, 0 = fora)
   const raw=ctx.getImageData(0,0,roadMaskW,roadMaskH).data;
   roadMaskData=new Uint8Array(roadMaskW*roadMaskH);
   for(let i=0,j=0;i<roadMaskData.length;i++,j+=4)roadMaskData[i]=raw[j]>80?1:0;
   console.info('Mapa do asfalto criado:',triangles,'triângulos');
 }
+
 function roadPixel(x,y){
   if(!roadMaskData||x<0||y<0||x>=roadMaskW||y>=roadMaskH)return false;
   return roadMaskData[y*roadMaskW+x]===1;
 }
+
+// Consulta se uma posição do mundo 3D está em cima do asfalto
 function roadAt(x,z){
   if(!roadMaskData){
     const p=project(x,z);return Math.abs(p.lat)<=CFG.roadHalf;
@@ -208,6 +232,8 @@ function roadAt(x,z){
   const px=Math.floor((x-ROAD_MIN_X)*ROAD_SCALE),py=Math.floor((ROAD_MAX_Z-z)*ROAD_SCALE);
   return roadPixel(px,py);
 }
+
+// Localiza o ponto de asfalto mais próximo para recuperação de trajetória
 function nearestRoadPoint(x,z,maxPixels=90){
   if(!roadMaskData)return null;
   const px=Math.round((x-ROAD_MIN_X)*ROAD_SCALE),py=Math.round((ROAD_MAX_Z-z)*ROAD_SCALE);
@@ -225,6 +251,8 @@ function nearestRoadPoint(x,z,maxPixels=90){
   }
   return null;
 }
+
+// Calcula a tangente da curva na posição atual
 function roadTangent(x,z,currentTh){
   let best=currentTh,bestScore=-Infinity;
   for(let i=0;i<72;i++){
@@ -235,7 +263,9 @@ function roadTangent(x,z,currentTh){
   }
   return best;
 }
-function buildProceduralTrack(){ // fallback: circuito gerado por código
+
+// Pista Procedural de Fallback
+function buildProceduralTrack(){
   const grass=new THREE.Mesh(new THREE.PlaneGeometry(3000,3000),new THREE.MeshStandardMaterial({color:0x4f9a3f}));
   grass.rotation.x=-Math.PI/2;grass.position.set(0,-0.05,-160);grass.receiveShadow=true;grass.name='grass_1';scene.add(grass);groundOther.push(grass);
   const ring=(o1,o2,color,y,name)=>{const N=360,pos=[],idx=[];
@@ -250,7 +280,7 @@ function buildProceduralTrack(){ // fallback: circuito gerado por código
   for(let i=0;i<6;i++){const p=pathAt(60+i*40,-20);const b=new THREE.Mesh(new THREE.BoxGeometry(30,8,6),new THREE.MeshStandardMaterial({color:i%2?0xc8372d:0x2d5ec8}));b.position.set(p.x,4,p.z);scene.add(b);}
 }
 
-// ===== Karts e pilotos =====
+// ===== Construção Geométrica dos Karts e Pilotos =====
 function fallbackKart(color){
   const g=new THREE.Group(),M=c=>new THREE.MeshStandardMaterial({color:c,roughness:.6});
   const body=new THREE.Mesh(new THREE.BoxGeometry(1.6,0.55,3.4),M(color));body.position.y=0.65;g.add(body);
@@ -260,6 +290,7 @@ function fallbackKart(color){
   [[-1,1.4],[1,1.4],[-1,-1.3],[1,-1.3]].forEach(([x,z])=>{const w=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,0.55,16),M(0x151515));w.rotation.z=Math.PI/2;w.position.set(x*1.05,0.5,z);g.add(w);});
   g.traverse(o=>{if(o.isMesh)o.castShadow=true;});return g;
 }
+
 function makeKartVisual(ki,color){
   const cfg=KARTS[ki],gl=assets[cfg.file],root=new THREE.Group(),rot=new THREE.Group();root.add(rot);
   if(gl){
@@ -271,7 +302,9 @@ function makeKartVisual(ki,color){
   }else rot.add(fallbackKart(color));
   return root;
 }
-function makePilot(pi,kcfg){ // piloto sentado: corpo cortado na altura do quadril por um plano de recorte
+
+// Cria o modelo do piloto aplicando um plano de recorte (Clipping Plane) no quadril para ajustá-lo ao banco do kart
+function makePilot(pi,kcfg){
   const gl=assets[PILOTS[pi].file],holder=new THREE.Group(),plane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
   const hipY=kcfg.seat[1];let mixer=null;
   if(gl){
@@ -297,6 +330,7 @@ function makePilot(pi,kcfg){ // piloto sentado: corpo cortado na altura do quadr
   }
   return {holder,mixer,plane,hipY};
 }
+
 function createKart(ki,pi,isPlayer,idx){
   const color=isPlayer?'#e10600':AI_COLORS[idx%3];
   const root=makeKartVisual(ki,new THREE.Color(color));root.rotation.order='YXZ';
@@ -307,14 +341,15 @@ function createKart(ki,pi,isPlayer,idx){
     dist:0,sPrev:0,steerVisual:0,cpNext:0,laps:[],lapStart:0,best:Infinity,finished:false,finT:0,lastLap:0,autopilot:false,wall:0};
 }
 
-// ===== Corrida =====
+// ===== Inicialização e Gerenciamento da Corrida =====
 function startRace(){
   $('menu').style.display='none';$('fin').style.display='none';$('hud').style.display='block';
   karts.forEach(k=>{scene.remove(k.root);});karts=[];
   const aiK=[(sel.kart+1)%3,(sel.kart+2)%3,sel.kart],aiP=[(sel.pilot+1)%2,sel.pilot,(sel.pilot+1)%2];
   for(let i=0;i<CFG.aiCount;i++){const k=createKart(aiK[i],aiP[i],false,i);k.aiMax=0.88+Math.random()*0.08;k.lane=[3.2,-3.2,3.2][i];karts.push(k);}
   player=createKart(sel.kart,sel.pilot,true,0);karts.push(player);
-  // grid de largada (2 colunas) atrás da linha
+  
+  // Posiciona karts no grid de largada em 2 colunas
   const slots=[[S0off(6),3.2],[S0off(6),-3.2],[S0off(18),3.2],[S0off(18),-3.2]];
   karts.forEach((k,i)=>{const sl=slots[i],p=pathAt(sl[0],sl[1]);k.x=p.x;k.z=p.z;k.th=p.th;k.y=0;
     k.sPrev=project(k.x,k.z).s;k.dist=0;k.lapCount=0;k.startedLap=false;k.cpPrevX=k.x;k.cpPrevZ=k.z;
@@ -325,33 +360,39 @@ function startRace(){
   $('bestTime').textContent='--:--.---';$('lastTime').textContent='--:--.---';$('msg').textContent='';
   if(!audio)initAudio();
 }
+
 const S0off=d=>TR.S0-d;
-function placeGridPreview(){ // câmera de abertura sobre a reta de largada
+function placeGridPreview(){
   const p=pathAt(TR.S0-30,0);camera.position.set(p.x-25,14,p.z-30);camera.lookAt(p.x+40,1,p.z);
 }
 
-// ===== Física do veículo (arcade) =====
+// ===== Física dos Veículos (Estilo Arcade) =====
 function updateVehiclePhysics(k,dt,inp){
   const f={x:Math.sin(k.th),z:Math.cos(k.th)};
   const off=checkOffroad(k);
   const boosting=k.boostT>0;if(boosting)k.boostT-=dt;
-  // limite de velocidade conforme superfície / turbo
+  
+  // Define velocidade máxima dinâmica com base no turbo ou penalidade de off-road
   let cap=CFG.maxV*(k.isPlayer?1:k.aiMax)*(boosting?1.25:1);
   if(off)cap=CFG.maxV*0.3;
-  // aceleração / freio / ré
+  
+  // Aceleração, freio e ré
   if(inp.throttle>0){k.v+=(CFG.acc*(1-Math.pow(Math.max(k.v,0)/cap,2))*inp.throttle+(boosting?38:0))*dt;}
   else if(inp.brake>0){ const brakeForce=(!k.isPlayer?CFG.brake*0.82:CFG.brake); if(k.v>0.5)k.v-=brakeForce*inp.brake*dt; else k.v-=CFG.acc*0.6*dt; }
-  // arraste + atrito de rolagem
+  
+  // Arraste / Atrito natural
   if(inp.throttle<=0){const d=(3+0.09*Math.abs(k.v))*dt;k.v-=Math.sign(k.v)*Math.min(Math.abs(k.v),d);}
   k.v=Math.max(k.v,-CFG.revMax);
-  // penalidade off-road: queda drástica
+  
   if(k.v>cap)k.v-=(k.v-cap)*Math.min(1,(off?7:2.2)*dt)+(off?25:0)*dt;
   if(k.v<-CFG.revMax)k.v=-CFG.revMax;
-  // direção proporcional à velocidade
-  k.steer+=(inp.steer-k.steer)* (1-Math.exp(-(k.isPlayer?5.2:3.8)*dt));
+  
+  // Direção e esterço
+  k.steer+=(inp.steer-k.steer)*(1-Math.exp(-(k.isPlayer?5.2:3.8)*dt));
   const av=Math.abs(k.v),sf=clamp(av/8,0,1)*(1-0.28*clamp(av/CFG.maxV,0,1));
   const dir=k.v<-0.5?-1:1;
-  // drift
+  
+  // Lógica de Drift e carregamento de Boost
   if(!k.drifting&&inp.drift&&Math.abs(k.steer)>0.35&&k.v>16&&!off){k.drifting=true;k.dDir=Math.sign(k.steer);k.dT=0;}
   let turn;
   if(k.drifting){
@@ -360,28 +401,28 @@ function updateVehiclePhysics(k,dt,inp){
     k.v-=1.5*dt;
     if(!inp.drift||k.v<11||off){endDrift(k);}
   }else turn=k.steer*CFG.maxTurn*sf*dir;
-  // estabilidade: suaviza a guinada conforme a velocidade, sem travar o volante
+  
   turn*=1-0.18*clamp(av/CFG.maxV,0,1);
   k.th+=turn*dt;
-  // derrapagem visual + aderência lateral reduzida
+  
+  // Ângulo de derrapagem e aderência lateral
   k.slip+=((k.drifting?k.dDir*0.5:0)-k.slip)*Math.min(1,7*dt);
   const grip=k.drifting?2.9:13,tx=Math.sin(k.th)*k.v,tz=Math.cos(k.th)*k.v,a=1-Math.exp(-grip*dt);
   k.vx+=(tx-k.vx)*a;k.vz+=(tz-k.vz)*a;
   const prevX=k.x,prevZ=k.z;
   k.x+=k.vx*dt;k.z+=k.vz*dt;
-  // Para NPCs, a borda do asfalto funciona como barreira física: não atravessam
-  // a grama para cortar caminho. A colisão perde velocidade e mantém punição.
+  
+  // Barreira de asfalto para IA não cortar caminho pelo gramado
   if(!k.isPlayer&&!roadAt(k.x,k.z)){
     k.x=prevX;k.z=prevZ;k.vx*=-0.12;k.vz*=-0.12;k.v*=0.72;
     k.wall=Math.max(k.wall||0,0.45);k.penaltyT=(k.penaltyT||0)+0.5;
   }
-  // Penalidade de pista: desacelera de forma forte fora do asfalto,
-  // sem teletransportar o carro. Direção corretiva gradual para regressar.
+  
+  // Penalidades de fora de pista para o jogador
   if(!roadAt(k.x,k.z)){
     k.offroad=true;
     k.v*=Math.max(0,1-4.2*dt);
     k.vx*=Math.max(0,1-3.4*dt);k.vz*=Math.max(0,1-3.4*dt);
-    // Penalidade de tempo acumulada ao sair da pista.
     k.penaltyT=(k.penaltyT||0)+dt;
     const near=nearestRoadPoint(k.x,k.z,100);
     if(near){
@@ -392,19 +433,22 @@ function updateVehiclePhysics(k,dt,inp){
     }
   }else k.offroad=false;
 }
-function endDrift(k){ // Mini-Turbo ao sair da derrapagem
+
+// Encerra a derrapagem aplicando mini-turbos proporcionalmente ao tempo mantido
+function endDrift(k){
   if(!k.drifting)return;k.drifting=false;
   const lvl=k.dT>1.6?2:k.dT>0.8?1:0;
   if(lvl>0)k.boostT=Math.max(k.boostT,lvl===2?1.4:0.85);
   k.dT=0;
 }
-// ===== Off-road: fora do asfalto (grama/zebra/terra) =====
+
 function checkOffroad(k){
   const off=!roadAt(k.x,k.z);
   k.offroad=off;
   return off;
 }
-// ===== Altura do terreno + inclinação (pistas inclinadas) =====
+
+// Raycasting para detectar a altura do solo e normais da superfície inclinada
 function groundAt(k){
   _v.set(k.x,28,k.z);ray.set(_v,DOWN);
   let h=groundRoad.length?ray.intersectObjects(groundRoad,false):[];
@@ -413,7 +457,8 @@ function groundAt(k){
   _n.copy(h[0].face.normal);if(_n.y<0)_n.negate();
   return {y:h[0].point.y,n:_n.clone()};
 }
-// ===== Checkpoints invisíveis ordenados + voltas =====
+
+// ===== Sistema de Voltas e Linha de Chegada =====
 const START_X=8.6,START_Z=-28.5,START_HALF_WIDTH=9.0;
 function updateCheckpoints(k){
   const px=k.cpPrevX??k.x,pz=k.cpPrevZ??k.z;
@@ -438,9 +483,11 @@ function updateCheckpoints(k){
   }
   k.cpPrevX=k.x;k.cpPrevZ=k.z;
 }
+
 function flash(t){const m=$('msg');m.textContent=t;clearTimeout(flash.t);flash.t=setTimeout(()=>m.textContent='',1800);}
 const fmt=t=>{if(!isFinite(t))return '--:--.---';const m=Math.floor(t/60),s=t-m*60;return m+':'+(s<10?'0':'')+s.toFixed(3);};
 function ranking(){return [...karts].sort((a,b)=>(b.finished?1e6-b.finT:(b.lapCount||0)*10000+b.dist)-(a.finished?1e6-a.finT:(a.lapCount||0)*10000+a.dist));}
+
 function onPlayerFinish(){
   player.autopilot=true;
   setTimeout(()=>{
@@ -453,21 +500,20 @@ function onPlayerFinish(){
   },1800);
 }
 
-// ===== IA dos rivais (e piloto automático após a bandeirada) =====
+// ===== Algoritmo de Inteligência Artificial =====
 function aiInput(k){
   const clampLocal=(v,a,b)=>Math.max(a,Math.min(b,v));
   const speed=Math.abs(k.v), opponents=karts.filter(o=>o!==k&&!o.finished);
-  // A IA não escolhe um destino em linha reta: avalia várias curvas possíveis
-  // e elimina qualquer manobra que ponha o corpo do carro fora do asfalto.
   if(!roadAt(k.x,k.z)){
     const near=nearestRoadPoint(k.x,k.z,240);
     if(!near)return {throttle:0,brake:1,steer:0,drift:false};
     const err=wrapPI(Math.atan2(near.x-k.x,near.z-k.z)-k.th);
     return {throttle:0,brake:1,steer:clampLocal(err*1.6,-0.7,0.7),drift:false};
   }
-  // Probe o asfalto à frente para saber quando a pista realmente vira.
   const look=clampLocal(12+speed*0.60,16,38), step=1.5;
   let best=null,bestScore=-1e9;
+  
+  // Avalia 80 rotas possíveis em leque à frente do kart
   for(let steer=-1;steer<=1.001;steer+=0.025){
     let x=k.x,z=k.z,th=k.th,valid=true,score=0,minMargin=99;
     for(let d=step;d<=look;d+=step){
@@ -476,7 +522,6 @@ function aiInput(k){
       th+=turn*(step/v);
       x+=Math.sin(th)*step; z+=Math.cos(th)*step;
       if(!roadAt(x,z)){valid=false;break;}
-      // Verifica a largura ocupada pelo veículo, não só o ponto central.
       const nx=Math.cos(th),nz=-Math.sin(th);
       let inside=0;
       for(const side of [-2.1,-1.4,-0.7,0,0.7,1.4,2.1])
@@ -484,12 +529,10 @@ function aiInput(k){
       minMargin=Math.min(minMargin,inside);
       if(inside<7)score-= (7-inside)*7;
       else score+=2.5;
-      // O alinhamento com a direção local da estrada vale mais adiante.
       if(d>look*0.35){
         const tangent=roadTangent(x,z,th);
         score-=Math.abs(wrapPI(tangent-th))*(1.4+d/look*2.8);
       }
-      // Mantém distância real de colisão dos adversários.
       for(const o of opponents){
         const dx=x-o.x,dz=z-o.z,dist=Math.hypot(dx,dz);
         if(dist<4.4)score-=((4.4-dist)**2)*3;
@@ -505,31 +548,8 @@ function aiInput(k){
     return {throttle:0,brake:1,steer:clampLocal(err*1.3,-0.6,0.6),drift:false};
   }
   let steer=best.steer;
-  // Ultrapassagem apenas se houver corredor de asfalto por todo o movimento.
-  let passing=false;
-  for(const o of opponents){
-    const dx=o.x-k.x,dz=o.z-k.z;
-    const forward=dx*Math.sin(k.th)+dz*Math.cos(k.th);
-    const lateral=dx*Math.cos(k.th)-dz*Math.sin(k.th);
-    if(forward>1.5&&forward<15&&Math.abs(lateral)<3.8){
-      let bestSide=0,bestSideScore=-1e9;
-      for(const side of [-1,1]){
-        let safe=true,clear=0;
-        for(const d of [3,5,7,9,12,15]){
-          const px=k.x+Math.sin(k.th)*d+Math.cos(k.th)*side*3.1;
-          const pz=k.z+Math.cos(k.th)*d-Math.sin(k.th)*side*3.1;
-          if(!roadAt(px,pz)){safe=false;break;}
-          let crowded=false;
-          for(const q of opponents){if(q===o)continue;if(Math.hypot(px-q.x,pz-q.z)<4.2){crowded=true;break;}}
-          if(crowded){safe=false;break;} clear++;
-        }
-        if(safe&&clear>bestSideScore){bestSide=side;bestSideScore=clear;}
-      }
-      if(bestSide){steer=clampLocal(steer+bestSide*0.22,-1,1);passing=true;}
-      break;
-    }
-  }
-  // Freia com antecedência: estima a mudança de tangente em vários pontos reais.
+  
+  // Leitura de curva para frenagem preventiva da IA
   let curvature=0;
   for(const d of [5,9,14,20,27]){
     const px=k.x+Math.sin(k.th)*d,pz=k.z+Math.cos(k.th)*d;
@@ -538,15 +558,18 @@ function aiInput(k){
     curvature=Math.max(curvature,Math.abs(wrapPI(tangent-k.th))*16/d);
   }
   const maxAllowed=CFG.maxV*(k.aiMax||0.78);
-  const safeSpeed=maxAllowed*clampLocal(1-curvature*0.42,0.28,1)*(passing?0.94:1);
+  const safeSpeed=maxAllowed*clampLocal(1-curvature*0.42,0.28,1);
   const throttle=k.v<safeSpeed-1.0?1:0;
   const brake=k.v>safeSpeed?clampLocal((k.v-safeSpeed)*0.45,0.22,1):0;
   return {throttle,brake,steer,drift:false};
 }
+
 function playerInput(){
   const up=keys.KeyW||keys.ArrowUp,dn=keys.KeyS||keys.ArrowDown,l=keys.KeyA||keys.ArrowLeft,r=keys.KeyD||keys.ArrowRight;
   return {throttle:up?1:0,brake:dn?1:0,steer:(l?1:0)-(r?1:0),drift:!!(keys.Space||keys.ShiftLeft||keys.ShiftRight)};
 }
+
+// Separa karts para evitar sobreposição (Colisão Elástica Simples)
 function separateKarts(){
   for(let i=0;i<karts.length;i++)for(let j=i+1;j<karts.length;j++){
     const a=karts[i],b=karts[j],dx=b.x-a.x,dz=b.z-a.z,d=Math.hypot(dx,dz),min=2.3;
@@ -555,7 +578,7 @@ function separateKarts(){
   }
 }
 
-// ===== Partículas (faíscas de drift / turbo) =====
+// ===== Sistema de Partículas para Efeitos Visuais =====
 function makeParticles(){
   const N=140,pos=new Float32Array(N*3),col=new Float32Array(N*3),life=new Float32Array(N),vel=new Float32Array(N*3);
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('color',new THREE.BufferAttribute(col,3));
@@ -566,12 +589,12 @@ function emit(x,y,z,c){const P=particles,i=P.i=(P.i+1)%P.N;P.pos.set([x,y,z],i*3
   P.vel.set([(Math.random()-.5)*5,2+Math.random()*3,(Math.random()-.5)*5],i*3);}
 function updateParticles(dt){
   const P=particles;for(let i=0;i<P.N;i++){if(P.life[i]>0){P.life[i]-=dt;P.vel[i*3+1]-=12*dt;
-    for(let a=0;a<3;a++)P.pos[i*3+a]+=P.vel[i*3+a]*dt;const f=Math.max(P.life[i]*2,0);
-    if(P.life[i]<=0){P.pos[i*3+1]=-999;}else{P.col[i*3]*=1;}}else P.pos[i*3+1]=-999;}
+    for(let a=0;a<3;a++)P.pos[i*3+a]+=P.vel[i*3+a]*dt;
+    if(P.life[i]<=0){P.pos[i*3+1]=-999;}}else P.pos[i*3+1]=-999;}
   P.points.geometry.attributes.position.needsUpdate=true;P.points.geometry.attributes.color.needsUpdate=true;
 }
 
-// ===== Câmera 3ª pessoa com lerp + FOV dinâmico =====
+// ===== Atualização de Câmera =====
 const camTarget=new THREE.Vector3(),camLook=new THREE.Vector3();let camTh=0;
 function updateCamera(dt,snap){
   const k=player;camTh+=wrapPI(k.th+k.slip*0.35-camTh)*(snap?1:1-Math.exp(-5*dt));
@@ -583,7 +606,7 @@ function updateCamera(dt,snap){
   camera.fov+=(fovT-camera.fov)*Math.min(1,3*dt);camera.updateProjectionMatrix();
 }
 
-// ===== HUD =====
+// ===== Desenho no Canvas do HUD =====
 const gctx=$('gauge').getContext('2d'),mctx=$('mini').getContext('2d');
 function drawGauge(kmh){
   const c=gctx,W=460,cx=230,cy=230,r=190;c.clearRect(0,0,W,W);
@@ -596,10 +619,9 @@ function drawGauge(kmh){
   const a=a0+span*f;c.strokeStyle='#fff';c.lineWidth=5;c.beginPath();c.moveTo(cx,cy);c.lineTo(cx+Math.cos(a)*(r-18),cy+Math.sin(a)*(r-18));c.stroke();
   c.fillStyle='#e10600';c.beginPath();c.arc(cx,cy,10,0,7);c.fill();
 }
-const miniPts=[];for(let i=0;i<120;i++)miniPts.push(pathAt(i/120*L,0));
+
 function drawMini(){
-  const c=mctx,W=180,H=104;
-  c.clearRect(0,0,W,H);
+  const c=mctx,W=180,H=104;c.clearRect(0,0,W,H);
   const sx=Math.min((W-20)/(ROAD_MAX_X-ROAD_MIN_X),(H-16)/(ROAD_MAX_Z-ROAD_MIN_Z));
   const dw=(ROAD_MAX_X-ROAD_MIN_X)*sx,dh=(ROAD_MAX_Z-ROAD_MIN_Z)*sx;
   const ox=(W-dw)/2,oy=(H-dh)/2;
@@ -607,6 +629,7 @@ function drawMini(){
   const X=x=>ox+(x-ROAD_MIN_X)*sx,Z=z=>oy+(ROAD_MAX_Z-z)*sx;
   karts.forEach(k=>{c.fillStyle=k.isPlayer?'#fff':k.color;c.beginPath();c.arc(X(k.x),Z(k.z),k.isPlayer?4.5:3,0,Math.PI*2);c.fill();if(k.isPlayer){c.strokeStyle='#e10600';c.lineWidth=2;c.stroke();}});
 }
+
 function updateHUD(){
   const kmh=Math.abs(player.v)*3.6;drawGauge(kmh);$('kmh').textContent=Math.round(kmh);
   const lap=clamp((player.lapCount||0)+1,1,CFG.laps);$('lapbig').textContent=lap+'/'+CFG.laps;
@@ -616,6 +639,7 @@ function updateHUD(){
   bf.style.width=lv*100+'%';bf.style.background=player.boostT>0?'#ff9d1a':(player.dT>1.6?'#ff9d1a':player.dT>0.8?'#3aa0ff':'#6b7a90');
   drawMini();
 }
+
 function updateLights(dt){
   if(state==='countdown'){
     cdTime+=dt;const on=clamp(Math.floor((cdTime-0.8)/0.8)+1,0,5),L5=[...document.querySelectorAll('.l')];
@@ -626,14 +650,13 @@ function updateLights(dt){
   if(goShown>0){goShown-=dt;if(goShown<=0){$('go').style.display='none';$('lights').style.display='none';}}
 }
 
-// ===== Áudio simples do motor =====
+// ===== Síntese de Áudio Sintético via Web Audio API =====
 function initAudio(){
   try{
     const ac=new (window.AudioContext||window.webkitAudioContext)();
     const master=ac.createGain();master.gain.value=0.52;master.connect(ac.destination);
     const makeVoice=(type,freq,gain,filterFreq)=>{const o=ac.createOscillator(),g=ac.createGain(),f=ac.createBiquadFilter();
       o.type=type;o.frequency.value=freq;f.type='lowpass';f.frequency.value=filterFreq;g.gain.value=gain;o.connect(f);f.connect(g);g.connect(master);o.start();return {o,g,f};};
-    // Camadas sintéticas: tom principal, harmônico e pulsação grave. O timbre muda entre kart e F1.
     const main=makeVoice('sawtooth',75,0.11,1200),harm=makeVoice('square',150,0.035,1800),low=makeVoice('triangle',38,0.09,260);
     const tire=makeVoice('sawtooth',900,0.0001,500);
     audio={ac,master,main,harm,low,tire};
@@ -642,15 +665,13 @@ function initAudio(){
   }catch(e){audio=null;}
 }
 
-// ===== Menu =====
 function buildMenu(){
   const mk=(id,arr,key)=>{const w=$(id);arr.forEach((a,i)=>{const d=document.createElement('div');d.className='card'+(i===sel[key]?' sel':'');d.innerHTML=a.name+'<small>'+a.sub+'</small>';
     d.onclick=()=>{sel[key]=i;[...w.children].forEach((c,j)=>c.classList.toggle('sel',j===i));};w.appendChild(d);});};
   mk('kartCards',KARTS,'kart');mk('pilotCards',PILOTS,'pilot');
 }
 
-// ===== Loop principal =====
-const _m=new THREE.Matrix4();
+// ===== Loop Principal da Aplicação (Frame por Frame) =====
 function animate(t){
   requestAnimationFrame(animate);
   const dt=Math.min((t-lastT)/1000||0.016,0.05);lastT=t;
@@ -668,7 +689,8 @@ function animate(t){
     if(state!=='countdown')updateCheckpoints(k);
   }
   if(racing){separateKarts();raceTime+=dt;}
-  // atualiza visuais (terreno, inclinação, piloto)
+  
+  // Atualiza transformações visuais (inclinação de suspensão e animações de piloto)
   for(const k of karts){
     const g=groundAt(k);k.y+=(g.y-k.y)*Math.min(1,18*dt);
     if(g.n){const fx=Math.sin(k.th),fz=Math.cos(k.th),lx=Math.cos(k.th),lz=-Math.sin(k.th);
@@ -676,19 +698,22 @@ function animate(t){
       k.pitch+=(Math.atan2(nf,g.n.y)-k.pitch)*Math.min(1,8*dt);k.roll+=(-Math.atan2(nl,g.n.y)-k.roll)*Math.min(1,8*dt);}
     k.root.position.set(k.x,k.y,k.z);
     k.root.rotation.set(k.pitch,k.th+k.slip,k.roll+(k.drifting?-k.dDir*0.04:0));
-    // plano de recorte do piloto (quadril)
     k.pilot.plane.constant=-(k.y+k.pilot.hipY-0.02);
     if(k.pilot.mixer)k.pilot.mixer.update(dt);
-    // faíscas
+    
+    // Emite faíscas durante derrapagem ou turbo
     if(k.drifting||k.boostT>0){const c=k.boostT>0?[1,0.55,0.1]:(k.dT>1.6?[1,0.6,0.1]:k.dT>0.8?[0.3,0.65,1]:[1,1,0.8]);
       for(let s=-1;s<=1;s+=2){const lx=Math.cos(k.th)*0.9*s,lz=-Math.sin(k.th)*0.9*s;emit(k.x-Math.sin(k.th)*1.8+lx,k.y+0.3,k.z-Math.cos(k.th)*1.8+lz,c);}}
   }
   updateParticles(dt);
   updateCamera(dt,false);
-  // sol e sombras seguem o jogador
+  
+  // Atualiza a posição da luz do sol para acompanhar o jogador e projetar sombras
   sun.position.set(player.x+55,player.y+85,player.z+35);sun.target.position.set(player.x,player.y,player.z);
   skyDome.position.copy(camera.position);
-  if(audio&&player){const sp=clamp(Math.abs(player.v)/CFG.maxV,0,1.35),f1=player.ki===0?0:player.ki===1?0:1;
+  
+  // Atualização das frequências do sintetizador de áudio conforme a velocidade/RPM
+  if(audio&&player){const sp=clamp(Math.abs(player.v)/CFG.maxV,0,1.35);
     const base=player.ki===0?48:player.ki===1?62:92;
     const rpm=base+sp*(player.ki===2?330:205)+(player.boostT>0?35:0);
     const now=audio.ac.currentTime,muted=state==='finished'?0:1;
@@ -704,4 +729,5 @@ function animate(t){
   renderer.render(scene,camera);
 }
 
+// Inicia a aplicação
 init();
