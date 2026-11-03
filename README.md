@@ -9,7 +9,7 @@
 <header class="hero">
   <h1 class="orb">F1 <span>KART</span> RACING 3D</h1>
   <p>Corrida de kart em 3D direto no navegador. Escolha seu kart e seu piloto, escolha a dificuldade dos rivais e dispute 3 voltas num circuito único contra 3 adversários.</p>
-  <a class="cta" href="https://claude.ai/artifact/9qKwkZu1yUXsNRQ5xFGqAH">JOGAR</a>
+  <a class="cta" href="https://petroshs.github.io/PedroPP/">JOGAR</a>
 </header>
 
 <main>
