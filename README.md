@@ -5,40 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>F1 Kart Racing 3D — Descrição do jogo</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
-<style>
-:root{--bg:#f4f5f8;--card:#ffffff;--txt:#161a24;--dim:#5b6478;--line:rgba(20,26,40,.14);--red:#e10600;--chip:#eceef4;
-  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0b0d12;--card:#141a28;--txt:#f2f4f8;--dim:#98a2b3;--line:rgba(255,255,255,.14);--chip:rgba(255,255,255,.08)}}
-:root[data-theme="dark"]{--bg:#0b0d12;--card:#141a28;--txt:#f2f4f8;--dim:#98a2b3;--line:rgba(255,255,255,.14);--chip:rgba(255,255,255,.08)}
-html{scroll-padding-top:env(safe-area-inset-top,0px)}
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--txt);font-family:'Rajdhani','Segoe UI',system-ui,sans-serif;font-size:18px;line-height:1.5}
-.orb{font-family:'Orbitron','Segoe UI',monospace}
-.hero{background:radial-gradient(ellipse at 30% 0%,#1c2540,#07080c 70%);color:#f2f4f8;padding:64px 20px 56px;text-align:center}
-.hero h1{font-size:clamp(28px,6vw,60px);font-weight:900;letter-spacing:3px}
-.hero h1 span{color:var(--red)}
-.hero p{max-width:680px;margin:16px auto 0;color:#c4cbd9;font-size:20px}
-.cta{display:inline-block;margin-top:26px;padding:13px 40px;background:var(--red);color:#fff;text-decoration:none;font-family:'Orbitron',sans-serif;font-weight:900;letter-spacing:3px;font-size:16px;clip-path:polygon(12px 0,100% 0,calc(100% - 12px) 100%,0 100%)}
-.cta:hover{filter:brightness(1.15)}
-main{max-width:980px;margin:0 auto;padding:36px 20px 60px}
-section{margin-top:40px}
-h2{font-family:'Orbitron',sans-serif;font-size:20px;letter-spacing:2px;margin-bottom:14px;padding-left:12px;border-left:4px solid var(--red)}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px 18px}
-.card h3{font-size:20px;margin-bottom:4px}
-.card p{color:var(--dim)}
-.tag{display:inline-block;margin-top:8px;padding:2px 10px;border-radius:999px;background:var(--chip);font-size:14px;font-weight:700;color:var(--dim)}
-.scroll{overflow-x:auto}
-table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:8px;overflow:hidden}
-th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
-th{font-size:13px;letter-spacing:2px;color:var(--dim);text-transform:uppercase}
-tr:last-child td{border-bottom:0}
-kbd{background:var(--chip);border:1px solid var(--line);border-radius:4px;padding:1px 9px;font-family:inherit;font-weight:700}
-pre{background:#0f1422;color:#dbe2f0;border-radius:8px;padding:16px 18px;overflow-x:auto;font-size:15px;line-height:1.55}
-ul{padding-left:22px;color:var(--dim)}li{margin:4px 0}li b{color:var(--txt)}
-.note{color:var(--dim);margin-top:10px;font-size:16px}
-footer{text-align:center;color:var(--dim);padding:24px 20px 40px;font-size:15px}
-</style>
 </head>
 <body>
 <header class="hero">
